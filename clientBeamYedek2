@@ -1,0 +1,146 @@
+import time
+import pygame
+
+from network import Network
+
+width = 960
+height = 540
+win = pygame.display.set_mode((width, height))
+pygame.display.set_caption("Client")
+
+clientNumber = 0
+
+class Player():
+    def __init__(self, x, y, image_path):
+        self.x = x
+        self.y = y
+        self.image = pygame.image.load(image_path)
+        self.image = pygame.transform.scale(self.image, (130, 130))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+        self.vel = 3
+        self.isBeamShot = 0
+        self.beam_cooldown = 2
+
+    def draw(self, win):
+        win.blit(self.image, self.rect.topleft)
+
+    def move(self):
+        keys = pygame.key.get_pressed()
+
+        if keys[pygame.K_RIGHT]:
+            self.x += self.vel
+
+        if keys[pygame.K_LEFT]:
+            self.x -= self.vel
+
+        if keys[pygame.K_UP]:
+            self.y -= self.vel
+
+        if keys[pygame.K_DOWN]:
+            self.y += self.vel
+        
+        if self.beam_cooldown > 0:
+            self.beam_cooldown -= 1
+        
+        if keys[pygame.K_SPACE]:
+            self.isBeamShot = 1
+        else: 
+            self.isBeamShot = 0
+        
+        
+
+        self.update()
+
+    def shoot(self):
+        beam = Beam(self.x + self.rect.width / 2, self.y)
+        beams.append(beam)
+        self.beam_cooldown = 80
+        ##self.isBeamShot = 0    
+
+    def update(self):
+        self.rect.topleft = (self.x, self.y)
+        if self.isBeamShot == 1:
+            self.shoot()
+
+class Beam():
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.image = pygame.image.load("beam.png")
+        self.image = pygame.transform.scale(self.image, (10, 30))
+        self.rect = self.image.get_rect()
+        self.rect.topleft = (x, y)
+        self.vel = 5
+        self.lifetime = 2
+
+    def move(self):
+        self.y -= self.vel
+        self.rect.topleft = (self.x, self.y)
+        self.lifetime -= 1 / 240
+
+    def draw(self, win):
+        win.blit(self.image, self.rect.topleft)
+
+def read_pos(str):
+    str = str.split(",")
+    return int(str[0]), int(str[1]), int(str[2])
+
+def make_pos(tup):
+    return str(tup[0]) + "," + str(tup[1])+ "," + str(tup[2])
+
+def redrawWindow(win, player,player2, background_image):
+    win.blit(background_image, (0, 0))
+    player.draw(win)
+    player2.draw(win)
+    for beam in beams:
+        beam.move()
+        if beam.lifetime > 0:
+            beam.draw(win)
+    for beam in beams2:
+        beam.move()
+        if beam.lifetime > 0:
+            beam.draw(win)
+    pygame.display.update()
+
+def main():
+    run = True
+    player_image_path = "player.png"
+    background_image_path = "background.jpg"
+    n = Network()
+    startPos = read_pos(n.getPos())
+    p2 = Player(startPos[0], startPos[1], player_image_path)
+    p = Player(50, 50, player_image_path)
+    background_image = pygame.image.load(background_image_path)
+    background_image = pygame.transform.scale(background_image, (width, height))
+
+    clock = pygame.time.Clock()
+
+    global beams
+    global beams2
+    beams = []
+    beams2 = []
+
+
+    while run:
+        clock.tick(240)
+        ##print(p.isBeamShot) adam gibi adam
+        p2Pos = read_pos(n.send(make_pos((p.x, p.y,p.isBeamShot))))
+        p2.x = p2Pos[0]
+        p2.y = p2Pos[1]
+        p2.isBeamShot = p2Pos[2]
+        
+        p2.update()
+        if p2.isBeamShot == 1 and p2.beam_cooldown == 0:
+            p2.shoot()
+        
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                run = False
+                pygame.quit()
+
+        p.move()
+        beams = [beam for beam in beams if beam.lifetime > 0]
+        redrawWindow(win, p,p2, background_image)
+
+main()
